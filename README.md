@@ -10,7 +10,8 @@ step.
 > do not exist, and the Jira site `larkwell-desk.example` is a placeholder. No
 > real data, hosts or credentials are included.
 
-**Live demo:** `https://<username>.github.io/servicedesk-wallboard/`
+**Live demo:** [tacitdev1.github.io/servicedesk-wallboard](https://tacitdev1.github.io/servicedesk-wallboard/)
+· **Code:** [github.com/TacitDev1/servicedesk-wallboard](https://github.com/TacitDev1/servicedesk-wallboard)
 
 ![Live board at laptop width](docs/screenshots/board-laptop.png)
 
