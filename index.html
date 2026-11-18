@@ -1,0 +1,1396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Service Desk wallboard · Larkwell (demo)</title>
+<meta name="description" content="A live-looking service desk wallboard: KPI tiles, SLA countdowns, a needs-attention feed and team workload. Sanitised template with invented data.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Crect width=%2224%22 height=%2224%22 rx=%225%22 fill=%22%2314532D%22/%3E%3Cpath d=%22M4 15.5c4.2-.6 7.3-3.6 9.2-8.8 1 3.9.1 7.2-2.6 9.4 3.6.2 6.8-1.4 9.4-4.6-1.5 5.3-5.6 8.5-11 8.5-2.2 0-3.9-.9-5-4.5z%22 fill=%22%23A3E635%22/%3E%3C/svg%3E">
+<style>
+  /* ---- dark command-board tokens ---- */
+  :root {
+    --bg: #141619; --panel: #1E2126; --panel2: #23272E; --line: #2C313A;
+    --ink: #DEE4EA; --ink2: #9FADBC; --ink3: #6B7785;
+    --blue: #579DFF; --blue-bg: #1C2B41; --blue-text: #85B8FF;
+    --red-bg: #42221F; --red-text: #FF9C8F; --red: #F87168;
+    --amber-bg: #332E1B; --amber-text: #F5CD47;
+    --green-bg: #1C3329; --green-text: #7EE2B8;
+    --purple-bg: #2B273F; --purple-text: #B8ACF6;
+    --teal-bg: #15373B; --teal-text: #6CC3E0;
+    --grey-bg: #2C333A; --grey-text: #9FADBC;
+    --brand: #14532D; --brand-accent: #A3E635;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, "Helvetica Neue", sans-serif;
+    font-size: 13.5px; -webkit-font-smoothing: antialiased;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ---- header ---- */
+  #topbar { display: flex; align-items: center; gap: 12px; height: 52px; padding: 0 18px; flex: none; }
+  #topbar .mark {
+    width: 26px; height: 26px; border-radius: 5px; background: var(--brand); flex: none;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #topbar .wordmark { font-size: 15px; font-weight: 700; letter-spacing: -.01em; color: var(--brand-accent); }
+  #mode-chip {
+    display: none; padding: 2px 7px; border-radius: 10px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em;
+    text-transform: uppercase; background: #1D2B12; color: var(--brand-accent); border: 1px solid #36501F; white-space: nowrap;
+  }
+  body.demo #mode-chip { display: inline-block; }
+  body.demo #signout { display: none; }
+  #topbar .title { font-size: 15px; font-weight: 600; }
+  #topbar .subtitle { color: var(--ink3); font-size: 12.5px; }
+  #search {
+    margin-left: 18px; width: 230px; padding: 5px 10px 5px 28px; border: 1px solid var(--line); border-radius: 5px;
+    font: inherit; font-size: 12.5px; color: var(--ink); background: var(--panel)
+      url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="%236B7785" stroke-width="2.4"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></svg>')
+      no-repeat 8px center;
+  }
+  #search:focus { outline: none; border-color: var(--blue); }
+  #search::placeholder { color: var(--ink3); }
+  #status { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink2); white-space: nowrap; }
+  #status .dot { width: 8px; height: 8px; border-radius: 50%; background: #4BCE97; flex: none; }
+  #status.warn .dot { background: #F5CD47; }
+  #status.err .dot { background: var(--red); }
+  #signout { color: var(--ink3); font-size: 11px; margin-left: 12px; white-space: nowrap; }
+  #signout:hover { color: var(--ink2); }
+
+  #banner { display: none; padding: 7px 18px; background: var(--amber-bg); color: var(--amber-text); font-size: 12.5px; flex: none; }
+  #banner.show { display: block; }
+
+  /* ---- KPI tiles ---- */
+  #kpis, #skpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; padding: 0 14px 10px; flex: none; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px 9px; }
+  .kpi .num { font-size: 27px; font-weight: 700; line-height: 1.1; color: var(--ink); }
+  .kpi .lbl { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--ink3); margin-top: 2px; }
+  .kpi .sub { font-size: 11px; color: var(--ink3); margin-top: 1px; }
+  .kpi a.num { display: block; }
+  .kpi .sub a { color: var(--ink2); font-weight: 600; }
+  .kpi .sub a:hover { color: var(--ink); }
+  .kpi a:hover { text-decoration: none; filter: brightness(1.25); }
+  .kpi.hot .num { color: var(--red-text); }
+  .kpi.warm .num { color: var(--amber-text); }
+  .kpi.cool .num { color: var(--blue-text); }
+  .kpi.calm .num { color: var(--green-text); }
+
+  /* ---- main grid ---- */
+  #grid {
+    flex: 1; min-height: 0; display: grid; gap: 10px; padding: 0 14px 14px;
+    grid-template-columns: 30fr 35fr 35fr;
+    grid-template-rows: 58fr 42fr;
+    grid-template-areas: "alerts c0 c1" "workload c0 c1";   /* c0, c1: the two client panels */
+  }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    display: flex; flex-direction: column; min-height: 0; min-width: 0;
+  }
+  .panel > h2 {
+    margin: 0; padding: 10px 14px 8px; font-size: 11.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .07em; color: var(--ink2);
+    display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); flex: none;
+  }
+  .panel > h2 .pcount { margin-left: auto; font-size: 11px; color: var(--ink3); font-weight: 600; }
+  .panel > h2 .dot { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+  .panel .body { flex: 1; overflow-y: auto; min-height: 0; }
+  #p-alerts { grid-area: alerts; } #p-workload { grid-area: workload; }
+
+  /* ---- ticket rows ---- */
+  .trow { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid #24282F; }
+  .trow:hover { background: var(--panel2); }
+  .trow .key { flex: none; width: 62px; font-weight: 600; font-size: 12.5px; }
+  .trow .sum { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+  .trow .sum .rt { color: var(--ink3); }
+  .trow .who {
+    flex: none; width: 24px; height: 24px; border-radius: 50%; color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 700;
+  }
+  .trow .who.none { background: var(--grey-bg); color: var(--ink3); border: 1px dashed var(--ink3); }
+  .grp {
+    padding: 7px 12px 4px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--ink3); background: var(--panel);
+    position: sticky; top: 0; z-index: 1;
+  }
+
+  /* lozenges + badges */
+  .loz, .badge {
+    display: inline-block; padding: 2px 6px; border-radius: 3px; flex: none;
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; white-space: nowrap;
+  }
+  .loz.inprogress { background: var(--blue-bg); color: var(--blue-text); }
+  .loz.pending { background: var(--grey-bg); color: var(--grey-text); }
+  .loz.waiting { background: var(--amber-bg); color: var(--amber-text); }
+  .loz.new { background: var(--purple-bg); color: var(--purple-text); }
+  .badge.breached { background: var(--red-bg); color: var(--red-text); }
+  .badge.breachsoon { background: var(--amber-bg); color: var(--amber-text); }
+  .badge.unassigned { background: var(--purple-bg); color: var(--purple-text); }
+  .badge.nofirst { background: var(--blue-bg); color: var(--blue-text); }
+  .badge.stale { background: var(--grey-bg); color: var(--grey-text); }
+  .badge.chase { background: var(--teal-bg); color: var(--teal-text); }
+
+  /* SLA chip */
+  .sla {
+    display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 10px;
+    font-size: 11px; font-weight: 600; white-space: nowrap; flex: none;
+  }
+  .sla svg { flex: none; }
+  .sla.ok { background: var(--green-bg); color: var(--green-text); }
+  .sla.soon { background: var(--amber-bg); color: var(--amber-text); }
+  .sla.breached { background: var(--red-bg); color: var(--red-text); }
+  .sla.paused { background: var(--grey-bg); color: var(--grey-text); }
+  .sla.done, .sla.none { color: var(--ink3); background: none; }
+
+  .empty { padding: 24px 14px; text-align: center; color: var(--ink3); font-size: 13px; }
+
+  /* ---- client legend ---- */
+  .legend { display: flex; gap: 14px; margin-bottom: 8px; font-size: 11.5px; color: var(--ink2); }
+  .legend .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+  /* ---- bars per person (team workload, resolved per assignee) ---- */
+  #b-workload, #b-resolvers { padding: 8px 14px 10px; }
+  .wl-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+  .wl-name { width: 118px; flex: none; text-align: right; font-size: 11.5px; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wl-bar { flex: 1; display: flex; align-items: center; gap: 2px; height: 13px; }
+  .wl-seg { display: block; height: 13px; border-radius: 0 3px 3px 0; min-width: 3px; transition: filter .12s; }
+  .wl-seg.first { border-radius: 3px; }
+  .wl-seg:hover { filter: brightness(1.3); }
+  .wl-total { flex: none; font-size: 11px; font-weight: 600; color: var(--ink2); margin-left: 4px; padding: 0 3px; border-radius: 3px; }
+  a.wl-total:hover { color: var(--ink); background: var(--panel2); text-decoration: none; }
+
+  /* ---- hover tooltip for chart segments ---- */
+  .wl-tip {
+    position: fixed; z-index: 10; pointer-events: none; display: none;
+    background: #0B0D0F; border: 1px solid var(--line); color: var(--ink); font-size: 11.5px; padding: 5px 8px; border-radius: 4px;
+  }
+
+  /* ---- page tabs ---- */
+  #tabs { display: flex; gap: 4px; margin-left: 14px; }
+  #tabs a {
+    padding: 4px 10px; border-radius: 5px; font-size: 12.5px; font-weight: 600; color: var(--ink2);
+  }
+  #tabs a:hover { background: var(--panel); text-decoration: none; color: var(--ink); }
+  #tabs a.on { background: var(--blue-bg); color: var(--blue-text); }
+
+  /* ---- all-time stats page ---- */
+  #stats-view { display: none; flex: 1; min-height: 0; flex-direction: column; }
+  body.view-stats #stats-view { display: flex; }
+  body.view-stats #kpis, body.view-stats #grid, body.view-stats #search { display: none; }
+  #sgrid {
+    flex: 1; min-height: 0; display: grid; gap: 10px; padding: 0 14px 14px;
+    grid-template-columns: 62fr 38fr;
+  }
+  .hint { font-size: 11px; color: var(--ink3); font-weight: 500; text-transform: none; letter-spacing: 0; }
+
+  /* monthly logged vs resolved chart */
+  #b-months { display: flex; flex-direction: column; padding: 8px 14px 6px; overflow: hidden; }
+  #b-months .legend { flex: none; }
+  .mc { flex: 1; min-height: 0; display: flex; gap: 4px; align-items: stretch; }
+  .mc-month { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .mc-bars { flex: 1; min-height: 0; display: flex; gap: 2px; align-items: flex-end; justify-content: center;
+    border-bottom: 1px solid var(--line); }
+  .mc-col { flex: 1; max-width: 16px; display: flex; flex-direction: column-reverse; height: 100%; justify-content: flex-start; }
+  .mc-seg { display: block; width: 100%; transition: filter .12s; }
+  .mc-seg:hover { filter: brightness(1.35); }
+  .mc-col .mc-seg:last-child { border-radius: 2px 2px 0 0; }
+  .mc-col.res .mc-seg { opacity: .5; }
+  .mc-col.res .mc-seg:hover { opacity: .8; }
+  .mc-lbl { flex: none; text-align: center; font-size: 10px; color: var(--ink3); padding-top: 4px; white-space: nowrap; overflow: hidden; }
+  .mc-lbl b { display: block; color: var(--ink2); font-weight: 600; }
+
+  /* ---- clickable totals ---- */
+  [data-drill] { cursor: pointer; }
+  .pcount a { color: inherit; }
+  .pcount a:hover { color: var(--ink); text-decoration: underline; }
+
+  /* ---- ticket list overlay ---- */
+  #drill {
+    position: fixed; inset: 0; z-index: 20; display: none; align-items: center; justify-content: center;
+    background: rgba(5, 6, 8, .62);
+  }
+  #drill.show { display: flex; }
+  .drill-box {
+    width: min(1320px, calc(100vw - 40px)); height: calc(100vh - 48px);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    display: flex; flex-direction: column; min-height: 0; box-shadow: 0 18px 50px rgba(0,0,0,.5);
+  }
+  .drill-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); flex: none; }
+  .drill-head .ttl { font-size: 15px; font-weight: 600; }
+  .drill-head .cnt { color: var(--ink3); font-size: 12.5px; }
+  .drill-head .jira {
+    margin-left: auto; padding: 5px 10px; border-radius: 5px; background: var(--blue-bg); color: var(--blue-text);
+    font-size: 12.5px; font-weight: 600;
+  }
+  .drill-head .jira:hover { text-decoration: none; filter: brightness(1.2); }
+  .drill-head .x {
+    border: 0; background: none; color: var(--ink2); font-size: 20px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 4px;
+  }
+  .drill-head .x:hover { background: var(--panel2); color: var(--ink); }
+  .drill-body { flex: 1; min-height: 0; overflow: auto; }
+  .dt { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .dt th {
+    position: sticky; top: 0; z-index: 1; background: var(--panel); text-align: left; white-space: nowrap;
+    padding: 8px 10px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--ink3); border-bottom: 1px solid var(--line); cursor: pointer; user-select: none;
+  }
+  .dt th:hover { color: var(--ink); }
+  .dt th.on { color: var(--blue-text); }
+  .dt td { padding: 6px 10px; border-bottom: 1px solid #24282F; vertical-align: middle; white-space: nowrap; }
+  .dt tr:hover td { background: var(--panel2); }
+  .dt td.sum { white-space: normal; min-width: 260px; max-width: 520px; }
+  .dt td.sum .rt { color: var(--ink3); }
+  .dt td.dim { color: var(--ink2); }
+  .dt .client { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+  .dt .ok { color: var(--green-text); font-weight: 600; }
+  .dt .bad { color: var(--red-text); font-weight: 600; }
+
+  @media (max-width: 1100px) {
+    body { overflow: auto; }
+    #grid, #sgrid, #stats-view { flex: none; }   /* grow with the content and scroll the page */
+    #kpis, #skpis { grid-template-columns: repeat(3, 1fr); }
+    #grid { grid-template-columns: 1fr; grid-template-rows: none;
+      grid-template-areas: "alerts" "c0" "c1" "workload"; }
+    .panel .body { max-height: 420px; }
+    #sgrid { grid-template-columns: 1fr; }
+    #b-months { height: 360px; flex: none; }
+  }
+  @media (max-width: 680px) {
+    #topbar { flex-wrap: wrap; height: auto; padding: 10px 14px; row-gap: 8px; }
+    #topbar .subtitle { display: none; }
+    #tabs { margin-left: auto; }
+    #search { order: 9; margin-left: 0; width: 100%; }
+    #status { order: 8; margin-left: 0; }
+    #kpis, #skpis { grid-template-columns: repeat(2, 1fr); }
+    .trow { flex-wrap: wrap; }
+    .trow .sum { flex-basis: calc(100% - 70px); }
+    .wl-name { width: 74px; }
+    .panel > h2 .hint { display: none; }
+    .panel > h2 .pcount { text-align: right; }
+    /* 20-odd months do not fit as labels on a phone: name every third one */
+    .mc-month:not(:nth-child(3n+1)) .mc-lbl b { visibility: hidden; }
+    .mc-lbl { overflow: visible; }
+  }
+
+  /* ---- demo toast ---- */
+  #toast {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 60; display: none;
+    max-width: calc(100vw - 32px); padding: 8px 14px; border-radius: 6px; font-size: 12.5px;
+    background: #0B0D0F; border: 1px solid var(--line); color: var(--ink); box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  }
+  #toast.show { display: block; }
+
+  /* ---- sign-in screen ---- */
+  #signin { display: none; position: fixed; inset: 0; z-index: 50; background: var(--bg);
+    align-items: center; justify-content: center; padding: 20px; overflow: auto; }
+  body.signin #signin { display: flex; }
+  .signin-box { width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 26px 26px 22px; display: flex; flex-direction: column; gap: 12px; }
+  .signin-box h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  .signin-box p { margin: 0; color: var(--ink2); font-size: 13px; line-height: 1.45; }
+  .signin-box label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--ink2); }
+  .signin-box input { padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; font: inherit;
+    font-size: 14px; color: var(--ink); background: var(--bg); }
+  .signin-box input:focus { outline: none; border-color: var(--blue); }
+  .signin-box button { margin-top: 4px; padding: 10px; border: 0; border-radius: 6px; font: inherit; font-size: 14px;
+    font-weight: 600; color: #0B1220; background: var(--blue); cursor: pointer; }
+  .signin-box button:hover { filter: brightness(1.1); }
+  .signin-box button:disabled { opacity: .6; cursor: default; }
+  .signin-box .help { font-size: 12.5px; }
+  #si-msg { min-height: 18px; font-size: 12.5px; color: var(--amber-text); }
+  .signin-box .fine { font-size: 11.5px; color: var(--ink3); }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="mark" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24"><path d="M3 15.5c4.4-.6 7.6-3.7 9.6-9.1 1.1 4.1.1 7.5-2.7 9.8 3.8.2 7.1-1.5 9.8-4.8-1.6 5.5-5.8 8.9-11.5 8.9-2.3 0-4-1-5.2-4.8z" fill="#A3E635"/></svg></div>
+  <span class="wordmark" id="brand"></span>
+  <span class="title" id="board-title"></span>
+  <span class="subtitle" id="subtitle"></span>
+  <span id="mode-chip" title="Invented data for a fictional company. No Jira connection.">Demo · invented data</span>
+  <nav id="tabs"><a href="#" data-view="board">Live board</a><a href="#stats" data-view="stats">All-time stats</a></nav>
+  <input id="search" type="text" placeholder="Search tickets" autocomplete="off">
+  <div id="status"><span class="dot"></span><span id="status-text">Connecting…</span></div>
+  <a id="signout" href="#" title="Forget the sign-in on this computer">Sign out</a>
+</div>
+<div id="banner"></div>
+
+<div id="kpis"></div>
+
+<div id="grid">
+  <div class="panel" id="p-alerts">
+    <h2><span class="dot" style="background:var(--red)"></span>Needs attention<span class="pcount" id="c-alerts"></span></h2>
+    <div class="body" id="b-alerts"></div>
+  </div>
+  <!-- the two client panels are added from CONFIG.clients -->
+  <div class="panel" id="p-workload">
+    <h2>Team workload<span class="pcount" id="c-workload"></span></h2>
+    <div class="body" id="b-workload"></div>
+  </div>
+</div>
+<div id="stats-view">
+  <div id="skpis"></div>
+  <div id="sgrid">
+    <div class="panel" id="p-months">
+      <h2>Logged &amp; resolved per month <span class="hint">· click a bar for the ticket list</span><span class="pcount" id="c-months"></span></h2>
+      <div class="body" id="b-months"></div>
+    </div>
+    <div class="panel" id="p-resolvers">
+      <h2>Resolved per assignee · all time<span class="pcount" id="c-resolvers"></span></h2>
+      <div class="body" id="b-resolvers"></div>
+    </div>
+  </div>
+</div>
+<div id="drill" role="dialog" aria-modal="true">
+  <div class="drill-box">
+    <div class="drill-head">
+      <span class="ttl" id="drill-title"></span><span class="cnt" id="drill-count"></span>
+      <a class="jira" id="drill-jira" href="#" target="_blank" rel="noopener">Open in Jira ↗</a>
+      <button class="x" id="drill-close" title="Close (Esc)">×</button>
+    </div>
+    <div class="drill-body" id="drill-body"></div>
+  </div>
+</div>
+<div class="wl-tip" id="wl-tip"></div>
+<div id="toast" role="status"></div>
+<div id="signin">
+  <form class="signin-box" id="signin-form">
+    <h1 id="si-title">Service Desk dashboard</h1>
+    <p>Sign in with your Jira account. You only need to do this once on this computer.</p>
+    <label>Jira email
+      <input id="si-email" type="email" autocomplete="username" required>
+    </label>
+    <label>API token
+      <input id="si-token" type="password" autocomplete="current-password" required>
+    </label>
+    <a class="help" href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener">I don't have an API token yet: create one ↗</a>
+    <button type="submit" id="si-go">Sign in</button>
+    <div id="si-msg"></div>
+    <p class="fine">Your token stays in this browser and is only passed on to Jira. The website does not store it.</p>
+  </form>
+</div>
+
+<script>
+'use strict';
+
+/* =============== configuration: everything site-specific lives here =============== */
+const CONFIG = {
+  brand: 'larkwell',                 // wordmark in the top bar
+  title: 'Service Desk',
+  /* 'demo': bundled invented data from data/*.json. No server, no Jira, works on GitHub Pages.
+     'live': your own Jira through the api/ proxy (netlify/functions/api.mjs, or server.js locally).
+     Add ?mode=live or ?mode=demo to the URL to override this without editing the file. */
+  mode: 'demo',
+  /* Base URL of the Jira site, for ticket and search links. In live mode the
+     proxy reports the site it talks to (JIRA_SITE), and that wins. */
+  jiraSite: 'https://larkwell-desk.example',
+  /* Jira project key -> client panel. Exactly two: the board has two client
+     columns. In live mode the keys must match JIRA_PROJECTS on the server. */
+  clients: {
+    BRW: { name: 'Brackenfield Waste', color: '#38BDF8' },
+    OSU: { name: 'Osterby Utilities',  color: '#F59E0B' },
+  },
+  /* JQL names of the Jira Service Management SLA fields (the custom field IDs
+     behind them are server-side settings: JIRA_FIELD_SLA_*). */
+  slaJql: { ttr: '"Time to resolution"', frt: '"Time to first response"' },
+  emailHint: 'you@larkwell.example',  // placeholder on the live-mode sign-in form
+  apiBase: 'api/',                    // relative, so the page works from any sub-path
+  demoData: { live: 'data/live.json', stats: 'data/stats.json' },
+  refreshMs: 15000,                   // live board refresh
+  statsEveryMs: 5 * 60e3,             // all-time stats refresh
+  storePrefix: 'wallboard.',          // localStorage key prefix
+};
+
+const MODE = (() => {
+  const m = new URLSearchParams(location.search).get('mode');
+  return m === 'live' || m === 'demo' ? m : CONFIG.mode;
+})();
+const DEMO = MODE === 'demo';
+
+/* =============== constants =============== */
+const H = 3600e3, D = 24 * H;
+const CLIENTS = CONFIG.clients;
+const CLIENT_KEYS = Object.keys(CLIENTS);
+const AVATAR_COLORS = ['#2563EB','#0E9F6E','#C2410C','#7C3AED','#B45309','#0E7490','#5B21B6','#047857','#B91C1C','#1D4ED8'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const UNASSIGNED = 'Unassigned';
+
+const STATUS = {
+  WAITING_SUPPORT: 'Waiting for support',
+  IN_PROGRESS: 'In Progress',
+  PENDING: 'Pending',
+  WAITING_CUSTOMER: 'Waiting for customer',
+};
+/* order of the groups in the client panels */
+const STATUS_GROUPS = [STATUS.WAITING_SUPPORT, STATUS.IN_PROGRESS, STATUS.PENDING, STATUS.WAITING_CUSTOMER];
+/* lozenge colour and short label; any other status is grey with its own name */
+const LOZENGE = {
+  [STATUS.IN_PROGRESS]:      { cls: 'inprogress' },
+  [STATUS.WAITING_CUSTOMER]: { cls: 'waiting', short: 'Waiting' },
+  [STATUS.WAITING_SUPPORT]:  { cls: 'new', short: 'To pick up' },
+};
+
+/* why a ticket needs attention, most urgent first */
+const REASONS = {
+  breached:   { rank: 0, label: 'SLA breached',      cls: 'breached' },
+  breachsoon: { rank: 1, label: 'Breaching soon',    cls: 'breachsoon' },
+  triage:     { rank: 2, label: 'Not picked up',     cls: 'unassigned' },
+  unassigned: { rank: 3, label: 'Unassigned',        cls: 'unassigned' },
+  nofirst:    { rank: 4, label: 'No first response', cls: 'nofirst' },
+  stale:      { rank: 5, label: 'Stale',             cls: 'stale' },
+  chase:      { rank: 6, label: 'Chase customer',    cls: 'chase' },
+};
+
+/* JQL names of the SLA fields behind the stats records' ttr / frt */
+const SLA_JQL = CONFIG.slaJql;
+
+/* =============== state =============== */
+let data = { generatedAt: null, tickets: [] };    // open tickets, from api/live (or data/live.json in demo mode)
+let dataStamp = '';
+let stats = { generatedAt: null, fullAt: null, error: false, tickets: [] };   // all-time, from api/stats (or data/stats.json)
+let statsStamp = '';
+let problem = '';        // '' | 'offline' (cannot reach the site) | 'jira' (Jira is not answering) | 'demodata' (data/*.json missing)
+let fresh = false;       // a live fetch has succeeded since the page was opened
+let build = null;        // the site version this page was loaded from
+let newVersion = false;  // the site has been updated since
+let statsBusy = false;
+let statsProgress = 0;   // tickets read so far during a first, full stats load
+let searchText = '';
+let drillSpec = null;   // the ticket list that is open, if any
+let drillSort = null;   // { col, dir } once the user clicks a column header
+
+/* =============== small helpers =============== */
+const $ = id => document.getElementById(id);
+
+const esc = s => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/* Replace a panel's content in place: its scroll position never moves. */
+function setHtml(el, html) {
+  const top = el.scrollTop;
+  el.innerHTML = html;
+  el.scrollTop = top;
+}
+
+function fmtDur(ms) {
+  ms = Math.abs(ms);
+  const d = Math.floor(ms / D), h = Math.floor((ms % D) / H), m = Math.floor((ms % H) / 60000);
+  if (d >= 2) return d + 'd ' + h + 'h';
+  if (ms >= H) return (d * 24 + h) + 'h ' + m + 'm';
+  return m + 'm';
+}
+/* countdown text: seconds once under an hour, so a clock close to breach visibly ticks */
+function fmtClock(ms) {
+  const a = Math.abs(ms);
+  if (a >= H) return fmtDur(a);
+  const m = Math.floor(a / 60000), sec = Math.floor((a % 60000) / 1000);
+  return m + 'm ' + String(sec).padStart(2, '0') + 's';
+}
+const fmtAbs = ms => new Date(ms).toLocaleString();
+const fmtDate = ms => ms ? new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+const fmtAgo = ms => ms ? fmtDur(Date.now() - ms) + ' ago' : '—';
+const fmtAge = age => age < 60e3 ? 'just now' : fmtDur(age) + ' ago';
+
+/* months as sortable 'YYYY-MM' keys */
+const monthKey = ms => { const d = new Date(ms); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
+function nextMonthKey(k) {
+  let [y, m] = k.split('-').map(Number);
+  m++; if (m > 12) { m = 1; y++; }
+  return y + '-' + String(m).padStart(2, '0');
+}
+const monthLabel = k => { const [y, m] = k.split('-'); return MONTHS[m - 1] + ' ' + y; };
+
+function avatarColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+const initials = name => name.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0].toUpperCase()).join('');
+
+/* =============== ticket rules =============== */
+/* Sitting in the queue untouched ("Waiting for support", or any To Do
+   status) — even when Jira already shows an assignee on it. */
+const isTriage = t => t.status === STATUS.WAITING_SUPPORT || t.statusCategory === 'new';
+const notPickedUp = t => !t.assignee || isTriage(t);
+
+function reasonsFor(t, now) {
+  const r = [];
+  const sla = t.sla;
+  if (sla && sla.state === 'ongoing') {
+    if (sla.breached || (!sla.paused && sla.breachAt != null && sla.breachAt <= now)) r.push('breached');
+    else if (!sla.paused && sla.breachAt && sla.breachAt - now < 24 * H) r.push('breachsoon');
+  }
+  if (isTriage(t)) r.push('triage');
+  if (!t.assignee) r.push('unassigned');
+  if (t.firstResponse && t.firstResponse.state === 'ongoing') r.push('nofirst');
+  const age = now - Date.parse(t.updated || t.created);
+  if ((t.status === STATUS.IN_PROGRESS || t.status === STATUS.PENDING) && age > 5 * D) r.push('stale');
+  if (t.status === STATUS.WAITING_CUSTOMER && age > 7 * D) r.push('chase');
+  return r;
+}
+/* rank of a ticket's most urgent reason (99 = none) */
+const topRank = (t, now) => Math.min(99, ...reasonsFor(t, now).map(r => REASONS[r].rank));
+
+/* soonest breach first; tickets without a running SLA clock last */
+function slaSortKey(t, now) {
+  const s = t.sla;
+  if (!s || s.state === 'done') return Infinity;
+  if (s.breachAt == null) return Infinity - 1;
+  return s.breachAt - now;
+}
+
+/* the search box; pass text to test a saved search instead */
+function matches(t, text) {
+  const q = text === undefined ? searchText : text;
+  if (!q) return true;
+  return (t.key + ' ' + (t.summary || '') + ' ' + (t.assignee || '') + ' ' + (t.requestType || '') + ' ' + (t.status || ''))
+    .toLowerCase().includes(q.toLowerCase());
+}
+const searchWhere = () => searchText ? [['q', searchText]] : [];
+
+/* { <client key>: n, ..., all: n } for the tickets that pass fn */
+function countByClient(tickets, fn) {
+  const n = { all: 0 };
+  for (const c of CLIENT_KEYS) n[c] = 0;
+  for (const t of tickets) if (fn(t)) { n.all++; n[t.client] = (n[t.client] || 0) + 1; }
+  return n;
+}
+
+/* Tickets per assignee, split by client, busiest person first:
+   [{ name, id (Jira accountId), <client key>: n, ..., total }] */
+function tallyByPerson(tickets) {
+  const by = new Map();
+  for (const t of tickets) {
+    const name = t.assignee || UNASSIGNED;
+    if (!by.has(name)) by.set(name, { name, id: null });
+    const rec = by.get(name);
+    rec[t.client] = (rec[t.client] || 0) + 1;
+    if (t.assigneeId) rec.id = t.assigneeId;
+  }
+  const rows = [...by.values()];
+  for (const r of rows) r.total = CLIENT_KEYS.reduce((sum, c) => sum + (r[c] || 0), 0);
+  return rows.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+}
+
+/* =============== Jira links =============== */
+const siteUrl = () => data.site || stats.site || CONFIG.jiraSite;
+const jiraSearchUrl = jql => siteUrl() + '/issues/?jql=' + encodeURIComponent(jql);
+function jqlUrl(clients, clauses, order) {
+  return jiraSearchUrl(['project in (' + clients.join(', ') + ')', ...clauses].join(' AND ') +
+    ' ORDER BY ' + (order || 'project ASC, updated DESC'));
+}
+/* r: a tallyByPerson row */
+const assigneeClause = r => r.name === UNASSIGNED ? 'assignee is EMPTY'
+  : 'assignee = "' + String(r.id || r.name).replace(/"/g, '\\"') + '"';
+
+/* =============== HTML pieces =============== */
+const CLOCK = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>';
+const PAUSE = '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
+
+/* A link that opens in a new tab. With a drill spec, a plain click opens the
+   ticket list instead and only Ctrl/middle-click follows the link to Jira. */
+function link(href, inner, { cls, tip, style, spec } = {}) {
+  return '<a' + (cls ? ' class="' + cls + '"' : '') + ' href="' + esc(href) + '" target="_blank" rel="noopener"' +
+    (tip ? ' data-tip="' + esc(tip) + '"' : '') +
+    (spec ? ' data-drill="' + esc(JSON.stringify(spec)) + '"' : '') +
+    (style ? ' style="' + style + '"' : '') + '>' + inner + '</a>';
+}
+const drillLink = (spec, inner, opts) => link(drillHref(spec), inner, { ...opts, spec });
+
+/* Running clocks carry data-at (the breach time) so tickChips() can update them every second. */
+function slaChip(t, now) {
+  const s = t.sla;
+  if (!s || s.state === 'done') return '';
+  const remaining = s.breachAt != null ? s.breachAt - now : null;
+  const breached = s.breached || (remaining != null && remaining <= 0);
+  const at = remaining != null && !s.paused ? ' data-at="' + s.breachAt + '"' : '';
+  if (breached)
+    return '<span class="sla breached" title="SLA breached"' + at + '>' + CLOCK +
+      '<span class="t">' + (remaining != null ? '-' + fmtClock(remaining) : 'breached') + '</span></span>';
+  if (s.paused)
+    return '<span class="sla paused" title="SLA paused (waiting on customer)">' + PAUSE + (remaining != null ? fmtDur(remaining) : '') + '</span>';
+  if (remaining == null) return '';
+  const cls = remaining < 4 * H ? 'soon' : 'ok';
+  return '<span class="sla ' + cls + '" title="Breach at ' + fmtAbs(s.breachAt) + '"' + at + '>' + CLOCK +
+    '<span class="t">' + fmtClock(remaining) + '</span></span>';
+}
+
+/* Between renders, keep every running SLA countdown ticking. */
+function tickChips() {
+  const now = Date.now();
+  for (const el of document.querySelectorAll('.sla[data-at]')) {
+    const remaining = Number(el.dataset.at) - now;
+    const t = el.querySelector('.t');
+    if (t) t.textContent = (remaining <= 0 ? '-' : '') + fmtClock(remaining);
+    const cls = remaining <= 0 ? 'breached' : remaining < 4 * H ? 'soon' : 'ok';
+    if (!el.classList.contains(cls)) { el.classList.remove('ok', 'soon', 'breached'); el.classList.add(cls); }
+  }
+}
+
+function lozenge(status) {
+  const { cls = 'pending', short = status } = LOZENGE[status] || {};
+  return '<span class="loz ' + cls + '" title="' + esc(status) + '">' + esc(short) + '</span>';
+}
+
+const badge = reason => '<span class="badge ' + REASONS[reason].cls + '">' + REASONS[reason].label + '</span>';
+const dim = html => '<span class="dim">' + html + '</span>';
+const empty = text => '<div class="empty">' + text + '</div>';
+
+function who(t) {
+  return t.assignee
+    ? '<span class="who" style="background:' + avatarColor(t.assignee) + '" title="' + esc(t.assignee) + '">' + esc(initials(t.assignee)) + '</span>'
+    : '<span class="who none" title="Unassigned">?</span>';
+}
+
+const clientDot = c => '<span class="client" style="background:' + (CLIENTS[c] ? CLIENTS[c].color : '#666') + '"></span>' + esc(c);
+const clientSuffix = clients => clients.length === 1 ? ' · ' + CLIENTS[clients[0]].name : '';
+const clientLegend = (extra = '') => '<div class="legend">' +
+  CLIENT_KEYS.map(c => '<span><span class="swatch" style="background:' + CLIENTS[c].color + '"></span>' + CLIENTS[c].name + '</span>').join('') +
+  extra + '</div>';
+
+/* k: { cls, num (html), lbl, sub (html, optional) } */
+const kpiTile = k => '<div class="kpi ' + k.cls + '">' + k.num + '<div class="lbl">' + k.lbl + '</div>' +
+  (k.sub ? '<div class="sub">' + k.sub + '</div>' : '') + '</div>';
+
+/* Horizontal bars, one row per person: a segment per client, then the total.
+   rows: from tallyByPerson. o: { src, title, where(r), url(r, clients), noun, totalNoun }
+   — what a click on a segment lists, and how the tooltip words the count. */
+function personBars(rows, o) {
+  const max = Math.max(1, ...rows.map(r => r.total));
+  const cell = (r, clients, inner, cls, tip, style) => {
+    const jql = o.url(r, clients);
+    const spec = { src: o.src, title: r.name + o.title + clientSuffix(clients), clients, where: o.where(r), jql };
+    return link(jql, inner, { cls, tip: tip + ' · click for the ticket list', style, spec });
+  };
+  return clientLegend() + rows.map(r => {
+    const present = CLIENT_KEYS.filter(c => r[c]);
+    return '<div class="wl-row"><div class="wl-name" title="' + esc(r.name) + '">' + esc(r.name) + '</div>' +
+      '<div class="wl-bar">' +
+      present.map((c, i) => cell(r, [c], '', 'wl-seg' + (i === 0 && present.length > 1 ? ' first' : ''),
+        r.name + ' — ' + CLIENTS[c].name + o.noun + ': ' + r[c],
+        'width:' + (r[c] / max * 100) + '%;background:' + CLIENTS[c].color)).join('') +
+      cell(r, CLIENT_KEYS, r.total, 'wl-total', r.name + ' — all ' + r.total + ' ' + o.totalNoun) +
+      '</div></div>';
+  }).join('');
+}
+
+/* =============== live board =============== */
+function renderKpis(now) {
+  const T = data.tickets;
+  const count = fn => T.filter(fn).length;
+  const withReason = id => count(t => reasonsFor(t, now).includes(id));
+  const live = (title, where = [], clients = CLIENT_KEYS) => ({ src: 'live', title, clients, where });
+  /* tone: the colour while there is something to act on; zero shows green */
+  const tile = (num, lbl, tone, spec, sub) => kpiTile({
+    cls: tone && num === 0 ? 'calm' : tone, num: drillLink(spec, num, { cls: 'num' }), lbl, sub });
+
+  $('kpis').innerHTML = [
+    tile(T.length, 'Open tickets', '', live('Open tickets'),
+      CLIENT_KEYS.map(c => drillLink(live('Open tickets · ' + CLIENTS[c].name, [], [c]),
+        c + ' ' + count(t => t.client === c))).join(' · ')),
+    tile(withReason('breached'), 'SLA breached', 'hot', live('SLA breached', [['reason', 'breached']])),
+    tile(withReason('breachsoon'), 'Breaching < 24h', 'warm', live('Breaching within 24h', [['reason', 'breachsoon']])),
+    tile(count(notPickedUp), 'Not picked up', 'hot', live('Not picked up (unassigned or waiting for support)', [['notpicked']]),
+      drillLink(live('Unassigned', [['reason', 'unassigned']]), withReason('unassigned') + ' unassigned') + ' · ' +
+      drillLink(live('Waiting for support', [['reason', 'triage']]), withReason('triage') + ' waiting for support')),
+    tile(withReason('nofirst'), 'No first response', 'cool', live('No first response yet', [['reason', 'nofirst']])),
+    tile(count(t => t.status === STATUS.WAITING_CUSTOMER), 'Waiting on customer', '',
+      live('Waiting on customer', [['status', STATUS.WAITING_CUSTOMER]]),
+      drillLink(live('Waiting on customer > 7 days — chase', [['reason', 'chase']]), withReason('chase') + ' to chase')),
+  ].join('');
+}
+
+const keyLink = t => link(t.url, esc(t.key), { cls: 'key' });
+
+function alertRow(t, now) {
+  return '<div class="trow">' + keyLink(t) +
+    '<span class="sum" title="' + esc(t.summary) + '">' + esc(t.summary) + '</span>' +
+    reasonsFor(t, now).slice(0, 2).map(badge).join(' ') + who(t) + slaChip(t, now) + '</div>';
+}
+
+function ticketRow(t, now) {
+  return '<div class="trow">' + keyLink(t) +
+    '<span class="sum" title="' + esc(t.summary) + (t.requestType ? ' — ' + esc(t.requestType) : '') + '">' +
+      esc(t.summary) + (t.requestType ? ' <span class="rt">· ' + esc(t.requestType) + '</span>' : '') + '</span>' +
+    lozenge(t.status) + who(t) + slaChip(t, now) + '</div>';
+}
+
+function renderAlerts(now) {
+  const list = data.tickets.filter(t => matches(t) && reasonsFor(t, now).length > 0)
+    .map(t => ({ t, rank: topRank(t, now), sla: slaSortKey(t, now) }))
+    .sort((a, b) => a.rank - b.rank || a.sla - b.sla)
+    .map(x => x.t);
+  const spec = { src: 'live', title: 'Needs attention', clients: CLIENT_KEYS, where: [['attention'], ...searchWhere()] };
+  $('c-alerts').innerHTML = drillLink(spec, list.length);
+  setHtml($('b-alerts'), list.length
+    ? list.map(t => alertRow(t, now)).join('')
+    : empty('All clear — nothing needs attention.'));
+}
+
+/* the client panels, one per CONFIG.clients entry, in grid areas c0, c1 */
+function buildClientPanels() {
+  CLIENT_KEYS.forEach((client, i) => {
+    const id = client.toLowerCase();
+    const panel = document.createElement('div');
+    panel.className = 'panel';
+    panel.id = 'cp-' + id;
+    panel.style.gridArea = 'c' + i;
+    panel.innerHTML = '<h2><span class="dot" style="background:' + CLIENTS[client].color + '"></span>' + esc(CLIENTS[client].name) +
+      '<span class="pcount" id="cc-' + id + '"></span></h2><div class="body" id="cb-' + id + '"></div>';
+    $('grid').insertBefore(panel, $('p-workload'));
+  });
+}
+
+/* one client panel: open tickets grouped by status, most urgent SLA first */
+function renderClient(client, now) {
+  const id = client.toLowerCase();
+  const list = data.tickets.filter(t => t.client === client && matches(t));
+  const spec = { src: 'live', title: CLIENTS[client].name + ' · open tickets', clients: [client], where: searchWhere() };
+  $('cc-' + id).innerHTML = drillLink(spec, list.length + ' open');
+  const group = (label, rows) => rows.length
+    ? '<div class="grp">' + esc(label) + ' · ' + rows.length + '</div>' + rows.map(t => ticketRow(t, now)).join('')
+    : '';
+  const html =
+    STATUS_GROUPS.map(status => group(status,
+      list.filter(t => t.status === status).sort((a, b) => slaSortKey(a, now) - slaSortKey(b, now)))).join('') +
+    group('Other', list.filter(t => !STATUS_GROUPS.includes(t.status)));
+  setHtml($('cb-' + id), html || empty('No open tickets.'));
+}
+
+function renderWorkload() {
+  const rows = tallyByPerson(data.tickets);
+  $('c-workload').textContent = rows.length + ' people';
+  setHtml($('b-workload'), personBars(rows, {
+    src: 'live', title: ' · open tickets', noun: '', totalNoun: 'tickets',
+    where: r => [['assignee', r.name]],
+    url: (r, clients) => jqlUrl(clients, [assigneeClause(r), 'statusCategory != Done']),
+  }));
+}
+
+/* =============== all-time stats page =============== */
+function renderStatsKpis() {
+  const count = fn => countByClient(stats.tickets, fn);
+  const logged = count(() => true).all;
+  const pct = (n, of) => of ? Math.round(n / of * 100) + '%' : '';
+  /* met / missed use Jira's own SLA functions, so the Jira list matches the count */
+  const slaTiles = (field, name) => {
+    const met = count(t => t[field] === 'met').all, missed = count(t => t[field] === 'missed').all;
+    return [
+      { lbl: name + ' SLA met', tone: 'calm', fn: t => t[field] === 'met', where: [['sla', field, 'met']],
+        clauses: [SLA_JQL[field] + ' = completed()', SLA_JQL[field] + ' != everBreached()'],
+        extra: met + missed ? pct(met, met + missed) + ' met' : '' },
+      { lbl: name + ' SLA missed', tone: 'hot', fn: t => t[field] === 'missed', where: [['sla', field, 'missed']],
+        clauses: [SLA_JQL[field] + ' = everBreached()'] },
+    ];
+  };
+  const tiles = [
+    { lbl: 'Tickets logged', tone: '', fn: () => true, where: [], clauses: [] },
+    { lbl: 'Tickets resolved', tone: 'cool', fn: t => t.resolved, where: [['resolved']], clauses: ['resolved is not EMPTY'],
+      extra: logged ? pct(count(t => t.resolved).all, logged) + ' of logged' : '' },
+    ...slaTiles('ttr', 'Resolution'),
+    ...slaTiles('frt', 'First response'),
+  ];
+  $('skpis').innerHTML = tiles.map(k => {
+    const n = count(k.fn);
+    const a = (clients, inner, cls) => {
+      const jql = jqlUrl(clients, k.clauses);
+      const spec = { src: 'stats', title: k.lbl + ' · all time' + clientSuffix(clients), clients, where: k.where, jql };
+      return link(jql, inner, { cls, spec });
+    };
+    return kpiTile({
+      cls: k.tone, lbl: k.lbl, num: a(CLIENT_KEYS, n.all, 'num'),
+      sub: CLIENT_KEYS.map(c => a([c], c + ' ' + n[c])).join(' · ') + (k.extra ? ' · ' + k.extra : ''),
+    });
+  }).join('');
+}
+
+/* logged vs resolved per month: two stacked bars per month, a segment per client */
+function renderMonths() {
+  const body = $('b-months');
+  if (!stats.tickets.length) {
+    body.innerHTML = empty(stats.generatedAt ? 'No tickets found.' : 'Loading all-time stats…');
+    return;
+  }
+  const perMonth = { created: {}, resolved: {} };   // field -> month -> { <client key>: n }
+  const bump = (field, k, client) => {
+    const m = perMonth[field][k] = perMonth[field][k] || {};
+    m[client] = (m[client] || 0) + 1;
+  };
+  let first = null;
+  for (const t of stats.tickets) {
+    if (t.created) { const k = monthKey(t.created); bump('created', k, t.client); if (!first || k < first) first = k; }
+    if (t.resolved) bump('resolved', monthKey(t.resolved), t.client);
+  }
+  const months = [];
+  for (let k = first, last = monthKey(Date.now()); k <= last; k = nextMonthKey(k)) months.push(k);
+  const total = m => m ? CLIENT_KEYS.reduce((sum, c) => sum + (m[c] || 0), 0) : 0;
+  const max = Math.max(1, ...months.map(k => Math.max(total(perMonth.created[k]), total(perMonth.resolved[k]))));
+
+  /* field: 'created' (the "logged" bar) or 'resolved' */
+  const segment = (k, field, client, n) => {
+    if (!n) return '';
+    const kind = field === 'created' ? 'logged' : 'resolved';
+    const name = CLIENTS[client].name;
+    const jql = jqlUrl([client], [field + ' >= "' + k + '-01"', field + ' < "' + nextMonthKey(k) + '-01"'], field + ' DESC');
+    const spec = { src: 'stats', title: name + ' · ' + kind + ' in ' + monthLabel(k), clients: [client], where: [['month', field, k]], jql };
+    return link(jql, '', {
+      cls: 'mc-seg', spec,
+      tip: monthLabel(k) + ' — ' + name + ' ' + kind + ': ' + n + ' · click for the ticket list',
+      style: 'height:' + (n / max * 100) + '%;background:' + CLIENTS[client].color,
+    });
+  };
+  const bar = (k, field) => '<div class="mc-col' + (field === 'resolved' ? ' res' : '') + '">' +
+    CLIENT_KEYS.map(c => segment(k, field, c, (perMonth[field][k] || {})[c])).join('') + '</div>';
+
+  body.innerHTML = clientLegend('<span>Left bar = logged · faded right bar = resolved</span>') + '<div class="mc">' +
+    months.map((k, i) => {
+      const [y, m] = k.split('-');
+      return '<div class="mc-month">' +
+        '<div class="mc-bars">' + bar(k, 'created') + bar(k, 'resolved') + '</div>' +
+        '<div class="mc-lbl"><b>' + MONTHS[m - 1] + '</b>' + (i === 0 || m === '01' ? y : '&nbsp;') + '</div></div>';
+    }).join('') + '</div>';
+}
+
+function renderResolvers() {
+  const rows = tallyByPerson(stats.tickets.filter(t => t.resolved));
+  $('c-resolvers').textContent = rows.length + ' people';
+  setHtml($('b-resolvers'), rows.length
+    ? personBars(rows, {
+        src: 'stats', title: ' · resolved, all time', noun: ' resolved', totalNoun: 'resolved',
+        where: r => [['assignee', r.name], ['resolved']],
+        url: (r, clients) => jqlUrl(clients, [assigneeClause(r), 'resolved is not EMPTY'], 'resolved DESC'),
+      })
+    : empty(stats.generatedAt ? 'No resolved tickets.' : 'Loading…'));
+}
+
+function renderStatsStatus(now) {
+  $('c-months').textContent =
+    statsBusy && !stats.generatedAt ? 'Loading all-time stats… ' + statsProgress + ' tickets so far'
+    : stats.error ? 'Jira not answering — showing last data'
+    : stats.generatedAt ? 'Updated ' + fmtAge(now - stats.generatedAt) + ' · refreshes every 5 min'
+    : '';
+}
+
+function renderStats() {
+  renderStatsKpis();
+  renderMonths();
+  renderResolvers();
+  renderStatsStatus(Date.now());
+  if (drillSpec && drillSpec.src === 'stats') renderDrill();
+}
+
+/* =============== hover tooltips for chart segments (both pages) =============== */
+const tip = $('wl-tip');
+document.addEventListener('mousemove', e => {
+  const seg = e.target.closest && e.target.closest('[data-tip]');
+  if (!seg) { tip.style.display = 'none'; return; }
+  tip.textContent = seg.dataset.tip;
+  tip.style.display = 'block';
+  const x = Math.min(e.clientX + 12, window.innerWidth - tip.offsetWidth - 8);
+  tip.style.left = x + 'px';
+  tip.style.top = (e.clientY + 14) + 'px';
+});
+document.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+
+/* =============== ticket list overlay (drill-down) =============== */
+/* Every clickable total carries a small JSON "spec":
+     { src: 'live' | 'stats',  which data: open tickets or all-time stats
+       title,                  heading of the list
+       clients: ['BRW', ...],  which projects
+       where: [[kind, ...]],   conditions, see CONDITIONS
+       jql }                   optional: the Jira search with the same tickets
+   The list is re-evaluated on every refresh, so an open list stays live. A
+   plain click opens the list here; Ctrl/middle-click follows the href to Jira. */
+const CONDITIONS = {
+  reason:    (t, now, id) => reasonsFor(t, now).includes(id),
+  attention: (t, now) => reasonsFor(t, now).length > 0,
+  notpicked: t => notPickedUp(t),
+  status:    (t, now, name) => t.status === name,
+  assignee:  (t, now, name) => (t.assignee || UNASSIGNED) === name,
+  resolved:  t => !!t.resolved,
+  sla:       (t, now, field, outcome) => t[field] === outcome,
+  month:     (t, now, field, key) => !!t[field] && monthKey(t[field]) === key,
+  q:         (t, now, text) => matches(t, text),
+};
+
+function drillRows(spec) {
+  const now = Date.now();
+  const tickets = spec.src === 'stats' ? stats.tickets : data.tickets;
+  const passes = (t, [kind, ...args]) => !CONDITIONS[kind] || CONDITIONS[kind](t, now, ...args);
+  return tickets.filter(t => spec.clients.includes(t.client) && spec.where.every(cond => passes(t, cond)));
+}
+
+/* Live lists link to Jira by exact keys; all-time lists carry their own JQL. */
+function drillHref(spec) {
+  if (spec.jql) return spec.jql;
+  const keys = drillRows(spec).map(t => t.key);
+  if (!keys.length) return jqlUrl(spec.clients, ['statusCategory != Done']);
+  return jiraSearchUrl('key in (' + keys.join(', ') + ') ORDER BY project ASC, updated DESC');
+}
+
+const slaWord = v => v === 'met' ? '<span class="ok">Met</span>' : v === 'missed' ? '<span class="bad">Missed</span>' : dim('—');
+const bold = text => '<b>' + esc(text) + '</b>';
+
+/* columns: sort gives the value to order by (ascending first), cell the HTML */
+const DRILL_COLS = {
+  live: [
+    { id: 'key', label: 'Key', sort: t => t.key, cell: t => link(t.url, bold(t.key)) },
+    { id: 'sum', label: 'Summary', cls: 'sum', sort: t => (t.summary || '').toLowerCase(),
+      cell: t => esc(t.summary) + (t.requestType ? ' <span class="rt">· ' + esc(t.requestType) + '</span>' : '') },
+    { id: 'client', label: 'Client', sort: t => t.client, cell: t => clientDot(t.client) },
+    { id: 'status', label: 'Status', sort: t => t.status, cell: t => lozenge(t.status) },
+    { id: 'who', label: 'Assignee', sort: t => (t.assignee || '~').toLowerCase(),
+      cell: t => t.assignee ? esc(t.assignee) : '<span class="badge unassigned">Unassigned</span>' },
+    { id: 'flags', label: 'Flags', sort: t => topRank(t, Date.now()), cell: t => reasonsFor(t, Date.now()).map(badge).join(' ') },
+    { id: 'sla', label: 'SLA', sort: t => slaSortKey(t, Date.now()), cell: t => slaChip(t, Date.now()) },
+    { id: 'prio', label: 'Priority', sort: t => t.priority || '', cell: t => dim(esc(t.priority || '—')) },
+    { id: 'created', label: 'Created', sort: t => -Date.parse(t.created), cell: t => dim(fmtDate(Date.parse(t.created))) },
+    { id: 'updated', label: 'Updated', sort: t => -Date.parse(t.updated || t.created), cell: t => dim(fmtAgo(Date.parse(t.updated || t.created))) },
+  ],
+  stats: [
+    { id: 'key', label: 'Key', sort: t => t.key, cell: t => link(siteUrl() + '/browse/' + t.key, bold(t.key)) },
+    { id: 'sum', label: 'Summary', cls: 'sum', sort: t => (t.summary || '').toLowerCase(), cell: t => esc(t.summary || '') },
+    { id: 'client', label: 'Client', sort: t => t.client, cell: t => clientDot(t.client) },
+    { id: 'status', label: 'Status', sort: t => t.status || '', cell: t => t.status ? lozenge(t.status) : '' },
+    { id: 'who', label: 'Assignee', sort: t => (t.assignee || '~').toLowerCase(), cell: t => t.assignee ? esc(t.assignee) : dim('Unassigned') },
+    { id: 'created', label: 'Created', sort: t => -(t.created || 0), cell: t => dim(fmtDate(t.created)) },
+    { id: 'resolved', label: 'Resolved', sort: t => -(t.resolved || 0), cell: t => dim(fmtDate(t.resolved)) },
+    { id: 'ttr', label: 'Resolution SLA', sort: t => t.ttr || 'z', cell: t => slaWord(t.ttr) },
+    { id: 'frt', label: 'First response SLA', sort: t => t.frt || 'z', cell: t => slaWord(t.frt) },
+  ],
+};
+const currentDrillSort = () => drillSort || { col: drillSpec.src === 'stats' ? 'created' : 'sla', dir: 1 };
+
+function renderDrill() {
+  if (!drillSpec) return;
+  const cols = DRILL_COLS[drillSpec.src];
+  const sort = currentDrillSort();
+  const col = cols.find(c => c.id === sort.col) || cols[0];
+  const rows = drillRows(drillSpec).sort((a, b) => {
+    const x = col.sort(a), y = col.sort(b);
+    return (x < y ? -1 : x > y ? 1 : 0) * sort.dir || a.key.localeCompare(b.key, undefined, { numeric: true });
+  });
+  $('drill-title').textContent = drillSpec.title;
+  $('drill-count').textContent = rows.length + (rows.length === 1 ? ' ticket' : ' tickets');
+  $('drill-jira').href = drillHref(drillSpec);
+  setHtml($('drill-body'), rows.length
+    ? '<table class="dt"><thead><tr>' + cols.map(c =>
+        '<th data-col="' + c.id + '" class="' + (c.id === col.id ? 'on' : '') + '">' + c.label +
+        (c.id === col.id ? (sort.dir > 0 ? ' ▲' : ' ▼') : '') + '</th>').join('') + '</tr></thead><tbody>' +
+      rows.map(t => '<tr>' + cols.map(c => '<td class="' + (c.cls || '') + '">' + c.cell(t) + '</td>').join('') + '</tr>').join('') +
+      '</tbody></table>'
+    : empty('No tickets match right now.'));
+}
+
+function openDrill(spec) {
+  drillSpec = spec;
+  drillSort = null;
+  $('drill').classList.add('show');   // visible first: hidden elements ignore scrollTop
+  renderDrill();
+  $('drill-body').scrollTop = 0;
+  tip.style.display = 'none';
+}
+function closeDrill() {
+  drillSpec = null;
+  $('drill').classList.remove('show');
+}
+
+document.addEventListener('click', e => {
+  const el = e.target.closest && e.target.closest('[data-drill]');
+  if (!el || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;   // modified click -> Jira
+  e.preventDefault();
+  try { openDrill(JSON.parse(el.dataset.drill)); } catch {}
+});
+$('drill').addEventListener('click', e => { if (e.target.id === 'drill') closeDrill(); });
+$('drill-close').addEventListener('click', closeDrill);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && drillSpec) closeDrill(); });
+$('drill-body').addEventListener('click', e => {
+  const th = e.target.closest('th[data-col]');
+  if (!th) return;
+  const cur = currentDrillSort();
+  drillSort = { col: th.dataset.col, dir: cur.col === th.dataset.col ? -cur.dir : 1 };
+  renderDrill();
+});
+
+/* =============== page tabs (hash-based, no reload) =============== */
+function applyView() {
+  const view = location.hash === '#stats' ? 'stats' : 'board';
+  document.body.classList.toggle('view-stats', view === 'stats');
+  for (const a of document.querySelectorAll('#tabs a')) a.classList.toggle('on', a.dataset.view === view);
+  tip.style.display = 'none';
+  if (view === 'stats') renderStats();
+}
+window.addEventListener('hashchange', applyView);
+
+/* =============== status + banner =============== */
+function updateStatus(now) {
+  const st = $('status');
+  const txt = $('status-text');
+  const last = data.generatedAt ? fmtAbs(data.generatedAt) : 'earlier';
+  let bannerMsg = '';
+  if (problem === 'demodata') {
+    st.className = 'err';
+    txt.textContent = 'No demo data';
+    bannerMsg = 'Could not load the demo data (' + CONFIG.demoData.live + '). Serve this folder over HTTP ' +
+      '(for example: npx serve .) rather than opening the file directly.';
+  } else if (DEMO && fresh) {
+    st.className = '';
+    txt.textContent = 'Demo · updated ' + fmtAge(now - data.generatedAt);
+  } else if (problem === 'offline') {
+    st.className = 'err';
+    txt.textContent = 'No connection';
+    bannerMsg = 'Cannot reach the dashboard right now — showing the last data from ' + last +
+      '. Check the internet connection; it will reconnect on its own.';
+  } else if (problem === 'jira') {
+    st.className = 'warn';
+    txt.textContent = 'Jira connection lost';
+    bannerMsg = 'Jira is not answering right now — showing the last good data from ' + last +
+      '. It will recover on its own.';
+  } else if (!fresh) {
+    st.className = '';
+    txt.textContent = data.generatedAt ? 'Loading latest…' : 'Connecting…';
+  } else {
+    st.className = '';
+    const age = now - data.generatedAt;
+    txt.textContent = 'Live · updated ' + fmtAge(age);
+    if (age > 3 * 60e3) {
+      st.className = 'warn';
+      bannerMsg = 'Data is ' + fmtDur(age) + ' old — the connection may have dropped.';
+    } else if (newVersion) {
+      bannerMsg = 'A newer version of the dashboard is available — reload this page to get it.';
+    }
+  }
+  $('banner').textContent = bannerMsg;
+  $('banner').classList.toggle('show', !!bannerMsg);
+}
+
+/* =============== render =============== */
+/* Everything is re-rendered in place: no reload, scroll positions and the
+   search box's focus are never touched. */
+function render() {
+  const now = Date.now();
+  renderKpis(now);
+  renderAlerts(now);
+  for (const client of CLIENT_KEYS) renderClient(client, now);
+  renderWorkload();
+  updateStatus(now);
+  if (drillSpec && drillSpec.src === 'live') renderDrill();
+}
+
+$('search').addEventListener('input', e => {
+  searchText = e.target.value.trim();
+  render();
+});
+
+/* =============== demo-mode niceties =============== */
+let toastTimer = null;
+function toast(text) {
+  const el = $('toast');
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+/* In demo mode the Jira links point at an invented site: say what they would
+   open instead of sending the visitor to a dead host. Plain clicks on totals
+   still open the ticket list (handled above). */
+document.addEventListener('click', e => {
+  if (!DEMO) return;
+  const a = e.target.closest && e.target.closest('a[href]');
+  if (!a || a.getAttribute('href') === '#' || a.closest('#tabs')) return;
+  if (a.dataset.drill && !(e.ctrlKey || e.metaKey || e.shiftKey)) return;
+  if (!a.href.startsWith(siteUrl())) return;
+  e.preventDefault();
+  const key = (a.href.match(/\/browse\/([A-Z][A-Z0-9]+-\d+)/) || [])[1];
+  toast(key ? 'Demo: in live mode this opens ' + key + ' in Jira.'
+    : 'Demo: in live mode this opens the same list as a Jira search.');
+}, true);
+
+/* Load the bundled demo data and slide every timestamp forward so that the
+   moment the data was generated becomes "now": SLA clocks that were 20 minutes
+   from breach are 20 minutes from breach whenever the page is opened. */
+async function loadDemo() {
+  const get = url => fetch(url, { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error(url); return r.json(); });
+  const [live, all] = await Promise.all([get(CONFIG.demoData.live), get(CONFIG.demoData.stats)]);
+  const now = Date.now();
+
+  const liveShift = now - live.generatedAt;
+  const iso = s => s ? new Date(Date.parse(s) + liveShift).toISOString() : s;
+  const clock = c => c && c.breachAt != null ? { ...c, breachAt: c.breachAt + liveShift } : c;
+  data = {
+    site: live.site, generatedAt: now, build: null,
+    tickets: live.tickets.map(t => ({
+      ...t, created: iso(t.created), updated: iso(t.updated), sla: clock(t.sla), firstResponse: clock(t.firstResponse),
+    })),
+  };
+
+  const statsShift = now - all.generatedAt;
+  const ms = v => v == null ? v : v + statsShift;
+  stats = {
+    site: all.site, generatedAt: now, fullAt: now, error: false,
+    tickets: all.tickets.map(t => ({ ...t, created: ms(t.created), resolved: ms(t.resolved) })),
+  };
+}
+
+/* A demo "refresh": nothing to fetch, but paused clocks stay paused (their
+   breach time moves along with the clock) and the board re-renders. */
+function demoTick() {
+  const now = Date.now();
+  const elapsed = now - (data.generatedAt || now);
+  for (const t of data.tickets) {
+    for (const c of [t.sla, t.firstResponse]) if (c && c.paused && c.breachAt != null) c.breachAt += elapsed;
+  }
+  data.generatedAt = now;
+  stats.generatedAt = now;
+  render();
+  renderStatsStatus(now);
+}
+
+/* =============== sign-in (live mode) =============== */
+/* The Jira email + API token are kept in this browser only and go out with
+   every api/ call (in their own X-Jira-Auth header); the proxy stores nothing.
+   The last tickets are kept here too, so the page can show them at once when
+   it is opened again. */
+const store = {
+  get(key) { try { return JSON.parse(localStorage.getItem(CONFIG.storePrefix + key)); } catch { return null; } },
+  set(key, value) { try { localStorage.setItem(CONFIG.storePrefix + key, JSON.stringify(value)); } catch { /* full or blocked: no cache */ } },
+  clear() {
+    try {
+      for (const k of Object.keys(localStorage)) if (k.startsWith(CONFIG.storePrefix)) localStorage.removeItem(k);
+    } catch { /* blocked */ }
+  },
+};
+let auth = DEMO ? null : store.get('auth');   // base64 of "email:token", or null when signed out
+let running = false;            // signed in (or in demo mode) and loading data
+
+/* path: 'live', 'me', 'stats?…' — always relative to the page, so a sub-path deploy works */
+async function api(path) {
+  let res;
+  try {
+    res = await fetch(CONFIG.apiBase + path, { cache: 'no-store', headers: auth ? { 'X-Jira-Auth': auth } : {} });
+  } catch {
+    throw Object.assign(new Error('offline'), { offline: true });
+  }
+  if (res.status === 401) {
+    // Our proxy says 401 in JSON: Jira did not accept the sign-in. Any other
+    // 401 is a site password in front of the whole site having run out.
+    if ((res.headers.get('content-type') || '').includes('application/json')) {
+      throw Object.assign(new Error('rejected'), { rejected: true });
+    }
+    sitePasswordNeeded();
+    throw Object.assign(new Error('offline'), { offline: true });
+  }
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+// Reload, so the host's own password page shows. At most once a minute, in
+// case the password is not what is wrong.
+function sitePasswordNeeded() {
+  try {
+    if (Date.now() - (Number(sessionStorage.getItem(CONFIG.storePrefix + 'reloadedAt')) || 0) < 60e3) return;
+    sessionStorage.setItem(CONFIG.storePrefix + 'reloadedAt', Date.now());
+  } catch { return; }
+  location.reload();
+}
+
+function showSignin(message) {
+  running = false;
+  $('si-email').value = store.get('email') || '';
+  $('si-msg').textContent = message;
+  document.body.classList.add('signin');
+  ($('si-email').value ? $('si-token') : $('si-email')).focus();
+}
+
+// Jira stopped accepting the saved token (expired or revoked): forget it and
+// the tickets kept in this browser, keep the email for the form.
+function signInAgain() {
+  const email = store.get('email');
+  store.clear();
+  store.set('email', email);
+  auth = null;
+  showSignin('Your API token was rejected or has expired. Create a new one and sign in again.');
+}
+
+$('signin-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const email = $('si-email').value.trim();
+  const msg = $('si-msg');
+  try {
+    auth = btoa(email + ':' + $('si-token').value.trim());
+  } catch {
+    msg.textContent = 'That token has a character Jira would not accept. Copy it again and paste it in.';
+    return;
+  }
+  $('si-go').disabled = true;
+  msg.textContent = 'Checking…';
+  try {
+    await api('me');
+    store.set('auth', auth);
+    store.set('email', email);
+    $('si-token').value = '';
+    msg.textContent = '';
+    document.body.classList.remove('signin');
+    start();
+  } catch (err) {
+    auth = null;
+    msg.textContent = err.rejected ? 'Jira did not accept that email and API token. Check both and try again.'
+      : 'Could not reach Jira just now. Try again in a moment.';
+  } finally {
+    $('si-go').disabled = false;
+  }
+});
+
+$('signout').addEventListener('click', e => {
+  e.preventDefault();
+  store.clear();
+  location.reload();
+});
+
+/* =============== data loop =============== */
+const STATS_FULL_EVERY = D;   // re-read everything once a day: picks up deleted or moved tickets
+
+let refreshing = false;
+async function refresh() {
+  if (!running || refreshing || document.hidden) return;
+  if (DEMO) return demoTick();
+  refreshing = true;
+  try {
+    const payload = await api('live');
+    problem = '';
+    fresh = true;
+    if (payload.build && !build) build = payload.build;
+    if (payload.build && payload.build !== build) newVersion = true;
+    const stamp = JSON.stringify(payload.tickets);
+    const changed = stamp !== dataStamp;
+    dataStamp = stamp;
+    data = payload;
+    if (changed) {
+      store.set('live', payload);
+      render();
+    } else {
+      updateStatus(Date.now());
+    }
+  } catch (err) {
+    if (err.rejected) return signInAgain();
+    problem = err.offline ? 'offline' : 'jira';
+    updateStatus(Date.now());
+  } finally {
+    refreshing = false;
+  }
+}
+
+// Every stats ticket of one project, a chunk per request. With `changed`
+// (minutes) only the tickets changed in that time, or still open.
+async function statsChunks(project, changed) {
+  const tickets = [];
+  let cursor = null;
+  do {
+    const r = await api('stats?project=' + encodeURIComponent(project) + (changed ? '&changed=' + changed : '') +
+      (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''));
+    tickets.push(...r.tickets);
+    cursor = r.cursor;
+    statsProgress += r.tickets.length;
+    if (!stats.generatedAt) renderStatsStatus(Date.now());
+  } while (cursor);
+  return tickets;
+}
+
+/* All-time stats are kept in this browser. The first load reads every ticket
+   (both clients side by side); after that only what changed is fetched and
+   merged in, so opening the page again shows the stats at once. */
+async function syncStats() {
+  if (!running || DEMO || statsBusy || document.hidden) return;
+  const startedAt = Date.now();
+  if (stats.generatedAt && startedAt - stats.generatedAt < CONFIG.statsEveryMs - 30e3) return;
+  const full = !stats.fullAt || startedAt - stats.fullAt > STATS_FULL_EVERY;
+  // Since the last sync, plus 10 minutes of overlap for clock differences.
+  const changed = full ? 0 : Math.ceil((startedAt - stats.generatedAt) / 60e3) + 10;
+  statsBusy = true;
+  statsProgress = 0;
+  renderStatsStatus(startedAt);
+  try {
+    const parts = await Promise.all(CLIENT_KEYS.map(project => statsChunks(project, changed)));
+    const byKey = new Map(full ? [] : stats.tickets.map(t => [t.key, t]));
+    for (const t of parts.flat()) byKey.set(t.key, t);
+    const tickets = [...byKey.values()].sort((a, b) => (a.created || 0) - (b.created || 0));
+    stats = { generatedAt: startedAt, fullAt: full ? startedAt : stats.fullAt, error: false, tickets };
+    store.set('stats', stats);
+    statsBusy = false;
+    const stamp = JSON.stringify(tickets);
+    if (stamp !== statsStamp) {
+      statsStamp = stamp;
+      renderStats();
+    } else {
+      renderStatsStatus(Date.now());
+    }
+  } catch (err) {
+    statsBusy = false;
+    if (err.rejected) return signInAgain();
+    stats.error = true;
+    renderStatsStatus(Date.now());
+  }
+}
+
+function start() {
+  running = true;
+  refresh();
+  syncStats();
+}
+
+/* =============== boot =============== */
+$('brand').textContent = CONFIG.brand;
+$('board-title').textContent = CONFIG.title;
+$('subtitle').textContent = CLIENT_KEYS.map(c => CLIENTS[c].name).join(' & ');
+$('si-title').textContent = CONFIG.title + ' dashboard';
+$('si-email').placeholder = CONFIG.emailHint;
+document.body.classList.toggle('demo', DEMO);
+buildClientPanels();
+
+// What this browser kept from last time shows straight away; fresh data follows.
+if (auth) {
+  const lastLive = store.get('live');
+  const lastStats = store.get('stats');
+  if (lastLive && Array.isArray(lastLive.tickets)) data = lastLive;
+  if (lastStats && Array.isArray(lastStats.tickets)) {
+    stats = lastStats;
+    statsStamp = JSON.stringify(stats.tickets);
+  }
+}
+render();
+applyView();
+
+(async function boot() {
+  if (DEMO) {
+    try {
+      await loadDemo();
+    } catch {
+      problem = 'demodata';
+      return updateStatus(Date.now());
+    }
+    fresh = true;
+    running = true;
+    render();
+    renderStats();
+    return;
+  }
+  if (!auth) {
+    // server.js with JIRA_EMAIL / JIRA_API_TOKEN set answers without a sign-in; a public site says 401.
+    try { await api('me'); } catch { return showSignin(''); }
+  }
+  start();
+})();
+
+setInterval(refresh, CONFIG.refreshMs);         // live data (demo: re-render)
+setInterval(syncStats, CONFIG.statsEveryMs);    // all-time stats
+setInterval(() => { render(); renderStatsStatus(Date.now()); }, 30000);  // re-sort and re-flag between fetches
+setInterval(tickChips, 1000);                   // SLA countdowns tick every second
+document.addEventListener('visibilitychange', () => { refresh(); syncStats(); });  // catch up when the tab is shown again
+</script>
+</body>
+</html>

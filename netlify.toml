@@ -1,0 +1,21 @@
+# Optional live mode on Netlify: the static page plus the Jira proxy function.
+# Set the JIRA_* variables from .env.example in the site's environment settings
+# (never JIRA_EMAIL / JIRA_API_TOKEN here: each person signs in on the page).
+# Put a site password in front of it if your tickets are not public.
+
+[build]
+  command = "node scripts/stage-site.mjs"
+  publish = "_site"
+  functions = "netlify/functions"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # The page is one file with inline script and style. It loads nothing from
+    # anywhere else and may only talk to this site's own api/.
+    Content-Security-Policy = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+    X-Robots-Tag = "noindex, nofollow"
+    Cache-Control = "no-cache"

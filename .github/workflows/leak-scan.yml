@@ -1,0 +1,25 @@
+# Copy to .github/workflows/leak-scan.yml in every portfolio repo.
+# Add the private denylist as a repository secret named LEAK_DENYLIST
+# (Settings > Secrets and variables > Actions), terms separated by commas.
+name: Leak scan
+on:
+  push:
+  pull_request:
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Names, hosts and addresses
+        run: node scripts/leak-scan.mjs
+        env:
+          LEAK_DENYLIST: ${{ secrets.LEAK_DENYLIST }}
+      - name: Secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
