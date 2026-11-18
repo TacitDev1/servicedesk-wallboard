@@ -1,6 +1,6 @@
 # Copy to .github/workflows/leak-scan.yml in every portfolio repo.
 # Add the private denylist as a repository secret named LEAK_DENYLIST
-# (Settings > Secrets and variables > Actions), terms separated by commas.
+# (Settings > Secrets and variables > Actions), terms separated by commas or new lines.
 name: Leak scan
 on:
   push:
@@ -19,7 +19,9 @@ jobs:
         run: node scripts/leak-scan.mjs
         env:
           LEAK_DENYLIST: ${{ secrets.LEAK_DENYLIST }}
+      # Runs the gitleaks CLI over the whole history. (gitleaks-action fails on a
+      # first push of several commits: it scans from the root commit's parent.)
       - name: Secrets (gitleaks)
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz | tar xz gitleaks
+          ./gitleaks git . --redact --verbose --exit-code 1
